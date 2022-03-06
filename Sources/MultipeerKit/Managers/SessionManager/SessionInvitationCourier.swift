@@ -10,7 +10,7 @@ import MultipeerConnectivity
 
 /// A class that retains an invitation handler from the MultipeerConnectivity framework so it can be used statefully in a SwiftUI context.
 /// Will accept or decline the peer on the session that the request was received on. 
-class SessionInvitationCourier: Equatable {
+public class SessionInvitationCourier: Equatable {
     
     // MARK: - Exposed Properties
     /// Peer doing request came from
@@ -40,7 +40,7 @@ class SessionInvitationCourier: Equatable {
     }
     
     // MARK: - Equatability
-    static func == (lhs: SessionInvitationCourier, rhs: SessionInvitationCourier) -> Bool {
+    public static func == (lhs: SessionInvitationCourier, rhs: SessionInvitationCourier) -> Bool {
         lhs.peer == rhs.peer &&
         lhs.session == rhs.session
     }

@@ -57,13 +57,13 @@ public class MultipeerSessionManager: NSObject, ObservableObject {
     
     // MARK: - Published Properties
     /// Peers currently tracked as being part of the session
-    @Published var connectedPeers: [MCPeerID] = []
+    @Published public var connectedPeers: [MCPeerID] = []
     
     /// Connectivity State of known peers
-    @Published var peersToConnectionState: [MCPeerID: MCSessionState] = [:]
+    @Published public var peersToConnectionState: [MCPeerID: MCSessionState] = [:]
     
     /// Currently Pending Invitation Handler
-    @Published var activeInvitationCourier: SessionInvitationCourier?
+    @Published public var activeInvitationCourier: SessionInvitationCourier?
     
     /// SubManagers
     @Published public private(set) var advertisingManager: AdvertisingManager?
