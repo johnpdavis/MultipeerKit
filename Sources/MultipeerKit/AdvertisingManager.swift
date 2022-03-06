@@ -2,20 +2,22 @@ import Foundation
 import MultipeerConnectivity
 
 // MARK: - AdvertisingManagerDelegate
-protocol AdvertisingManagerDelegate: AnyObject {
-    func manager(_ manager: MultipeerAdvertisingManager, didReceiveJoinRequestFrom peer: MCPeerID, with inviteHandler: @escaping ((Bool, MCSession?) -> Void))
+public protocol AdvertisingManagerDelegate: AnyObject {
+    func manager(_ manager: AdvertisingManager, didReceiveJoinRequestFrom peer: MCPeerID, with inviteHandler: @escaping ((Bool, MCSession?) -> Void))
 }
 
+// MARK: - AdvertisingManager
 // Assists in advertising a device's service to other peers
-class MultipeerAdvertisingManager: NSObject, ObservableObject {
-    enum AdvertisingState {
-        case advertisingToClients
+public class AdvertisingManager: NSObject, ObservableObject {
+    // MARK: - AdvertisingState
+    public enum AdvertisingState: Equatable {
+        case advertising
         case notAdvertising
         case errorAdvertising(Error)
         
         var string: String {
             switch self {
-            case .advertisingToClients:
+            case .advertising:
                 return "Advertising"
             case .notAdvertising:
                 return "Not Advertising"
@@ -24,9 +26,9 @@ class MultipeerAdvertisingManager: NSObject, ObservableObject {
             }
         }
         
-        public static func == (lhs: MultipeerAdvertisingManager.AdvertisingState, rhs: MultipeerAdvertisingManager.AdvertisingState) -> Bool {
+        public static func == (lhs: AdvertisingManager.AdvertisingState, rhs: AdvertisingManager.AdvertisingState) -> Bool {
             switch (lhs, rhs) {
-            case (.advertisingToClients, .advertisingToClients):
+            case (.advertising, .advertising):
                 return true
             case (.notAdvertising, .notAdvertising):
                 return true
@@ -38,38 +40,62 @@ class MultipeerAdvertisingManager: NSObject, ObservableObject {
         }
     }
     
+    // MARK: - Exposed Properties
     public weak var delegate: AdvertisingManagerDelegate?
     
-    private var advertiser: MCNearbyServiceAdvertiser
-    
+    // MARK: - Published Properties
     @Published public var advertisingState: AdvertisingState = .notAdvertising
     
-    init(peerID: MCPeerID, discoveryInfo: [String: String], serviceType: String) {
+    // MARK: - Internal Properties
+    private var advertiser: ServiceAdvertiserProtocol
+    
+    // MARK: - Initialization
+    public init(peerID: MCPeerID, discoveryInfo: [String: String], serviceType: String) {
         advertiser = MCNearbyServiceAdvertiser(peer: peerID, discoveryInfo: discoveryInfo, serviceType: serviceType)
         super.init()
         advertiser.delegate = self
     }
     
-    func startAdvertising() {
-        advertiser.startAdvertisingPeer()
-        advertisingState = .advertisingToClients
+    public init(advertiser: ServiceAdvertiserProtocol) {
+        self.advertiser = advertiser
+        super.init()
+        advertiser.delegate = self
     }
     
-    func stopAdvertising() {
+    // MARK: - Advertiser Control
+    public func startAdvertising() {
+        advertiser.startAdvertisingPeer()
+        advertisingState = .advertising
+    }
+    
+    public func stopAdvertising() {
         advertiser.stopAdvertisingPeer()
         advertisingState = .notAdvertising
     }
 }
 
-extension MultipeerAdvertisingManager: MCNearbyServiceAdvertiserDelegate {
-    func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didReceiveInvitationFromPeer peerID: MCPeerID, withContext context: Data?, invitationHandler: @escaping (Bool, MCSession?) -> Void) {
-        
+// MARK: - Internal Helpers
+extension AdvertisingManager {
+    // MARK: - Browser Feedback
+    func handleAdvertisingError(_ error: Error) {
+        advertiser.stopAdvertisingPeer()
+        advertisingState = .errorAdvertising(error)
+    }
+    
+    func handleInvitationReceivedFromPeer(_ peerID: MCPeerID, withContext context: Data?, invitationHandler: @escaping (Bool, MCSession?) -> Void) {
         // Call our delegate to confirm the invitation from this peer
         self.delegate?.manager(self, didReceiveJoinRequestFrom: peerID, with: invitationHandler)
     }
+}
+
+// MARK: - MCNearbyServiceAdvertiserDelegate
+extension AdvertisingManager: MCNearbyServiceAdvertiserDelegate {
+    public func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didReceiveInvitationFromPeer peerID: MCPeerID, withContext context: Data?, invitationHandler: @escaping (Bool, MCSession?) -> Void) {
+        handleInvitationReceivedFromPeer(peerID, withContext: context, invitationHandler: invitationHandler)
+    }
     
-    func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didNotStartAdvertisingPeer error: Error) {
+    public func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didNotStartAdvertisingPeer error: Error) {
         print("Error trying to Advertise: \(error)")
-        advertisingState = .errorAdvertising(error)
+        handleAdvertisingError(error)
     }
 }

@@ -3,64 +3,25 @@ import Foundation
 import MultipeerConnectivity
 import RealityKit
 
-extension MCSessionState {
-    var string: String {
-        switch self {
-        case .notConnected:
-            return "Not Connected"
-        case .connecting:
-            return "Connecting"
-        case .connected:
-            return "Connected"
-        @unknown default:
-            return "Unknown(\(rawValue))"
-        }
-    }
-}
-
-class SessionInvitationCourier: Equatable {
-    
-    public let peer: MCPeerID
-    private let session: MCSession
-    private let invitationHandler: ((Bool, MCSession?) -> Void)
-    
-    public init(peer: MCPeerID, session: MCSession, invitationHandler: @escaping ((Bool, MCSession?) -> Void)) {
-        self.peer = peer
-        self.session = session
-        self.invitationHandler = invitationHandler
-    }
-    
-    public func accept() {
-        invitationHandler(true, session)
-    }
-    
-    public func decline() {
-        invitationHandler(false, nil)
-    }
-    
-    static func == (lhs: SessionInvitationCourier, rhs: SessionInvitationCourier) -> Bool {
-        lhs.peer == rhs.peer &&
-        lhs.session == rhs.session 
-    }
-}
-
-// Maintain the Multipeer session. 
-// Provide nuke-ability if needed
-// 
+// MARK: - MultipeerSessionManager
+/// Aggregates an AdvertisingManager and a BrowsingManager, and provides a higher level interface so consumers can specify a session type
 class MultipeerSessionManager: NSObject, ObservableObject {
-    /// Key added to discovery info to check RealityKit compatibility token
-    public static let compTokenKey = "com.johndavis.gallery.CompToken"
-    /// Key added to discovery info to show OS version
-    public static let osVersionKey = "com.johndavis.gallery.OSVersion"
-    /// Key added to discovery info to show device platform
-    public static let platformKey = "com.johndavis.gallery.Platform"
     
+    // MARK: - Static keys
+    /// Key added to discovery info to check RealityKit compatibility token
+    public static let compTokenKey = "com.johndavis.multipeerkit.RealityKitCompatibilityToken"
+    /// Key added to discovery info to show OS version
+    public static let osVersionKey = "com.johndavis.multipeerkit.OSVersion"
+    /// Key added to discovery info to show device platform
+    public static let platformKey = "com.johndavis.multipeerkit.Platform"
+    
+    // MARK: - Session Type
     enum SessionType {
         case advertiser
         case browser
         case both
         
-        var isHost: Bool {
+        var isAdvertising: Bool {
             switch self {
             case .advertiser, .both:
                 return true
@@ -69,7 +30,7 @@ class MultipeerSessionManager: NSObject, ObservableObject {
             }
         }
         
-        var isPeer: Bool {
+        var isBrowsing: Bool {
             switch self {
             case .browser, .both:
                 return true
@@ -88,26 +49,27 @@ class MultipeerSessionManager: NSObject, ObservableObject {
     /// Name of the service, created at initialisation
     public let serviceName: String
     
+    /// The session type of the `SessionManager`. Changing this value will result in advertising and browsing managers being created or destroyed to satisfy the new state.
     @Published public var sessionType: SessionType? {
         willSet {
-            // only handle a set if the value is changing
+            // only handle a will set if the value is changing
             guard newValue != sessionType else { return }
             
             // Handle the movement AWAY from a particular state
             let stateWeAreMovingFrom = sessionType
             switch stateWeAreMovingFrom {
             case .browser:
-                removeBrowser() // No Longer a peer? Remove browser
+                removeBrowser() // No Longer a browser? Remove browser
             case .advertiser:
                 removeAdvertiser()
-                _activeSession?.disconnect() // No Longer a host? No longer advertise
+                _activeSession?.disconnect() // No Longer a advertiser? No longer advertise
             case .both:
-                // No Longer both? If we're not swapping to a peer, kill the browser, likewise for host
-                if newValue != .browser {
+                // No Longer both? Destory the manager we're not moving to
+                if let newValue = newValue {
+                    if !newValue.isBrowsing { removeBrowser() }
+                    if !newValue.isAdvertising { removeAdvertiser() }
+                } else {
                     removeBrowser()
-                }
-                
-                if newValue != .advertiser {
                     removeAdvertiser()
                 }
             case .none:
@@ -119,13 +81,13 @@ class MultipeerSessionManager: NSObject, ObservableObject {
         didSet {
             switch sessionType {
             case .browser:
-//                if oldValue != .both {
+                if oldValue != .both || oldValue != .browser {
                     createBrowser()
-//                }
+                }
             case .advertiser:
-//                if oldValue != .both {
+                if oldValue != .both || oldValue != .advertiser {
                     createAdvertiser()
-//                }
+                }
             case .both:
                 createBrowser()
                 createAdvertiser()
@@ -139,7 +101,7 @@ class MultipeerSessionManager: NSObject, ObservableObject {
         }
     }
     
-    /// MCSession
+    /// The currently Active MC Session
     private var _activeSession: MCSession? {
         didSet {
             if _activeSession == nil {
@@ -150,7 +112,7 @@ class MultipeerSessionManager: NSObject, ObservableObject {
         }
     }
     
-    internal var activeSession: MCSession {
+    var activeSession: MCSession {
         get {
             if let currentlyActive = _activeSession {
                 return currentlyActive
@@ -179,7 +141,7 @@ class MultipeerSessionManager: NSObject, ObservableObject {
     private var backgroundListener: AnyCancellable?
     
     /// SubManagers
-    @Published public private(set) var advertisingManager: MultipeerAdvertisingManager?
+    @Published public private(set) var advertisingManager: AdvertisingManager?
     @Published public private(set) var browsingManager: BrowsingManager?
     
     /// MultipeerConnectivity browser
@@ -212,7 +174,7 @@ class MultipeerSessionManager: NSObject, ObservableObject {
     public func createAdvertiser() {
         let discoveryInfo = makeDiscoveryInfo()
         
-        advertisingManager = MultipeerAdvertisingManager(peerID: myPeerID, discoveryInfo: discoveryInfo, serviceType: self.serviceName)
+        advertisingManager = AdvertisingManager(peerID: myPeerID, discoveryInfo: discoveryInfo, serviceType: self.serviceName)
         
         advertisingManager?.delegate = self
         
@@ -289,7 +251,7 @@ class MultipeerSessionManager: NSObject, ObservableObject {
 }
 
 extension MultipeerSessionManager: AdvertisingManagerDelegate {
-    func manager(_ manager: MultipeerAdvertisingManager, didReceiveJoinRequestFrom peer: MCPeerID, with inviteHandler: @escaping ((Bool, MCSession?) -> Void)) {
+    func manager(_ manager: AdvertisingManager, didReceiveJoinRequestFrom peer: MCPeerID, with inviteHandler: @escaping ((Bool, MCSession?) -> Void)) {
         let inviteCourier = SessionInvitationCourier(peer: peer, session: activeSession, invitationHandler: inviteHandler)
         activeInvitationCourier = inviteCourier
     }
@@ -341,5 +303,4 @@ extension MultipeerSessionManager: MCSessionDelegate {
     func session(_ session: MCSession, didReceiveCertificate certificate: [Any]?, fromPeer peerID: MCPeerID, certificateHandler: @escaping (Bool) -> Void) {
         certificateHandler(delegate?.manager(self, receivedCertificate: certificate, from: peerID) ?? true)
     }
-    
 }

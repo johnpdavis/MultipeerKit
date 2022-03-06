@@ -6,30 +6,86 @@
 //
 
 import XCTest
+@testable import MultipeerKit
+import MultipeerConnectivity
+
+class MockAdvertiser: ServiceAdvertiserProtocol {
+    
+    var startCalled: Bool = false
+    var stopCalled: Bool = false
+
+    var delegate: MCNearbyServiceAdvertiserDelegate?
+    
+    func startAdvertisingPeer() {
+        startCalled = true
+    }
+    
+    func stopAdvertisingPeer() {
+        stopCalled = true
+    }
+}
+
+class MockAdvertiserManagerDelegate: AdvertisingManagerDelegate {
+    var didReceiveJoinRequestCalled: Bool = false
+    
+    func manager(_ manager: AdvertisingManager, didReceiveJoinRequestFrom peer: MCPeerID, with inviteHandler: @escaping ((Bool, MCSession?) -> Void)) {
+        didReceiveJoinRequestCalled = true
+    }
+}
 
 class AdvertisingManagerTests: XCTestCase {
 
+    var managerUnderTest: AdvertisingManager!
+    var mockAdvertiser: MockAdvertiser!
+    
     override func setUpWithError() throws {
         // Put setup code here. This method is called before the invocation of each test method in the class.
+        mockAdvertiser = MockAdvertiser()
+        managerUnderTest = AdvertisingManager(advertiser: mockAdvertiser)
     }
 
-    override func tearDownWithError() throws {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
+    func testAdvertisingManager_start() {
+        // Act
+        managerUnderTest.startAdvertising()
+        
+        // Assert
+        XCTAssertEqual(managerUnderTest.advertisingState, .advertising)
+        XCTAssertTrue(mockAdvertiser.startCalled)
+        XCTAssertFalse(mockAdvertiser.stopCalled)
     }
-
-    func testExample() throws {
-        // This is an example of a functional test case.
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
-        // Any test you write for XCTest can be annotated as throws and async.
-        // Mark your test throws to produce an unexpected failure when your test encounters an uncaught error.
-        // Mark your test async to allow awaiting for asynchronous code to complete. Check the results with assertions afterwards.
+    
+    func testAdvertisingManager_stop() {
+        // Act + Assert
+        managerUnderTest.startAdvertising()
+        XCTAssertTrue(mockAdvertiser.startCalled)
+        XCTAssertFalse(mockAdvertiser.stopCalled)
+        
+        managerUnderTest.stopAdvertising()
+        // Assert
+        XCTAssertEqual(managerUnderTest.advertisingState, .notAdvertising)
+        XCTAssertTrue(mockAdvertiser.stopCalled)
     }
-
-    func testPerformanceExample() throws {
-        // This is an example of a performance test case.
-        self.measure {
-            // Put the code you want to measure the time of here.
-        }
+    
+    func testAdvertisingManager_errorBrowsing() {
+        // Act
+        managerUnderTest.startAdvertising()
+        
+        let mockError = MockError.mock
+        managerUnderTest.handleAdvertisingError(mockError)
+        
+        // Assert
+        XCTAssertEqual(managerUnderTest.advertisingState, .errorAdvertising(mockError))
     }
-
+    
+    func testAdvertisingManager_joinChaining() {
+        let fakePeer = MCPeerID(displayName: "Mock")
+        let mockDelegate = MockAdvertiserManagerDelegate()
+        
+        // Act
+        managerUnderTest.delegate = mockDelegate
+        managerUnderTest.handleInvitationReceivedFromPeer(fakePeer, withContext: nil, invitationHandler: {_, _ in })
+        
+        // Assert
+        XCTAssertTrue(mockDelegate.didReceiveJoinRequestCalled)
+    }
 }

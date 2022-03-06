@@ -8,7 +8,7 @@
 import Foundation
 import MultipeerConnectivity
 
-public protocol ServiceBrowserProtocol {
+public protocol ServiceBrowserProtocol: AnyObject {
     var delegate: MCNearbyServiceBrowserDelegate? { get set }
     
     func startBrowsingForPeers()

@@ -31,10 +31,6 @@ class MockBrowser: ServiceBrowserProtocol {
     }
 }
 
-enum MockError: Error {
-    case mock
-}
-
 class MockBrowsingManagerDelegate: BrowsingManagerDelegate {
     var validationError: Error?
     

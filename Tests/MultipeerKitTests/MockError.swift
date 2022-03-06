@@ -7,7 +7,6 @@
 
 import Foundation
 
-public protocol AdvertiserAssistantProtocol {
-    func start()
-    func stop()
+enum MockError: Error {
+    case mock
 }
