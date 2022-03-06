@@ -22,7 +22,7 @@ public class MultipeerSessionManager: NSObject, ObservableObject {
         case browser
         case both
         
-        var isAdvertising: Bool {
+        public var isAdvertising: Bool {
             switch self {
             case .advertiser, .both:
                 return true
@@ -31,7 +31,7 @@ public class MultipeerSessionManager: NSObject, ObservableObject {
             }
         }
         
-        var isBrowsing: Bool {
+        public var isBrowsing: Bool {
             switch self {
             case .browser, .both:
                 return true
