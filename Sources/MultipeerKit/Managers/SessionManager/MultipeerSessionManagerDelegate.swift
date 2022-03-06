@@ -48,17 +48,17 @@ protocol MultipeerSessionManagerDelegate: AnyObject {
     /// The key "MultipeerHelper.compTokenKey" is in use by MultipeerHelper, for checking the
     /// compatibility of RealityKit versions.
     /// - Returns: Discovery Info
-    func setDiscoveryInfo() -> [String: String]
+    func additionalDiscoveryInfo() -> [String: String]
     
     /// Peer can no longer be found on the network, and thus cannot receive data
     /// - Parameters:
-    ///   - peerHelper: The ``MultipeerHelper`` session that manages the nearby peer whose state changed
+    ///   - manager: The ``MultipeerSessionmanager`` that manages the nearby peer whose state changed
     ///   - peer: If a peer has left the network in a non typical way
     func manager(_ manager: MultipeerSessionManager, lostPeer peer: MCPeerID)
     
     /// Received a byte stream from remote peer.
     /// - Parameters:
-    ///   - peerHelper: The ``MultipeerHelper`` session through which the byte stream was opened
+    ///   - manager: The ``MultipeerSessionmanager``  through which the byte stream was opened
     ///   - stream: An NSInputStream object that represents the local endpoint for the byte stream.
     ///   - streamName: The name of the stream, as provided by the originator.
     ///   - peerID: The peer ID of the originator of the stream.
@@ -66,7 +66,7 @@ protocol MultipeerSessionManagerDelegate: AnyObject {
     
     /// Start receiving a resource from remote peer.
     /// - Parameters:
-    ///   - peerHelper: The ``MultipeerHelper`` session that started receiving the resource
+    ///   - manager: The ``MultipeerSessionmanager``that started receiving the resource
     ///   - resourceName: name of the resource, as provided by the sender.
     ///   - peerID: sender’s peer ID.
     ///   - progress: NSProgress object that can be used to cancel the transfer or queried to determine how far the transfer has progressed.
@@ -75,7 +75,7 @@ protocol MultipeerSessionManagerDelegate: AnyObject {
     
     /// Received a resource from remote peer.
     /// - Parameters:
-    ///   - peerHelper: The ``MultipeerHelper`` session through which the data were received
+    ///   - manager: The ``MultipeerSessionmanager`` through which the data were received
     ///   - resourceName: The name of the resource, as provided by the sender.
     ///   - peerID: The peer ID of the sender.
     ///   - localURL: An NSURL object that provides the location of a temporary file containing the received data.
@@ -85,7 +85,7 @@ protocol MultipeerSessionManagerDelegate: AnyObject {
     /// Made first contact with peer and have identity information about the
     /// remote peer (certificate may be nil).
     /// - Parameters:
-    ///   - peerHelper: The ``MultipeerHelper`` session that manages the nearby peer whose state changed
+    ///   - manager: The ``MultipeerSessionmanager`` that manages the nearby peer whose state changed
     ///   - certificate: A certificate chain, presented as an array of SecCertificateRef certificate objects. The first certificate in this chain is the peer’s certificate, which is derived from the identity that the peer provided when it called the `initWithPeer:securityIdentity:encryptionPreference:` method. The other certificates are the (optional) additional chain certificates provided in that same array.
     ///   If the nearby peer did not provide a security identity, then this parameter’s value is nil.
     ///   - peerID: The peer ID of the sender.

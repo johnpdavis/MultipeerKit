@@ -39,15 +39,34 @@ class MultipeerSessionManager: NSObject, ObservableObject {
             }
         }
     }
+    
+    /// This manager's peerID, populated at initialisation
+    public let myPeerID: MCPeerID
 
+    /// Name of the service, populated at initialisation
+    public let serviceName: String
+    
+    /// SessionManager Delegate
+    public weak var delegate: MultipeerSessionManagerDelegate?
+    
+    /// Answers if there is a living MCSession
+    public var hasActiveSession: Bool {
+        _activeSession != nil
+    }
+    
+    // MARK: - Published Properties
+    /// Peers currently tracked as being part of the session
     @Published var connectedPeers: [MCPeerID] = []
+    
+    /// Connectivity State of known peers
     @Published var peersToConnectionState: [MCPeerID: MCSessionState] = [:]
+    
+    /// Currently Pending Invitation Handler
     @Published var activeInvitationCourier: SessionInvitationCourier?
     
-    public weak var delegate: MultipeerSessionManagerDelegate?
-
-    /// Name of the service, created at initialisation
-    public let serviceName: String
+    /// SubManagers
+    @Published public private(set) var advertisingManager: AdvertisingManager?
+    @Published public private(set) var browsingManager: BrowsingManager?
     
     /// The session type of the `SessionManager`. Changing this value will result in advertising and browsing managers being created or destroyed to satisfy the new state.
     @Published public var sessionType: SessionType? {
@@ -101,6 +120,11 @@ class MultipeerSessionManager: NSObject, ObservableObject {
         }
     }
     
+    // MARK: - Internal Properties
+    private var advertiserListener: AnyCancellable?
+    private var browserListener: AnyCancellable?
+    private var backgroundListener: AnyCancellable?
+    
     /// The currently Active MC Session
     private var _activeSession: MCSession? {
         didSet {
@@ -128,27 +152,7 @@ class MultipeerSessionManager: NSObject, ObservableObject {
         }
     }
     
-    func removeActiveSession() {
-        _activeSession = nil
-    }
-    
-    var hasActiveSession: Bool {
-        _activeSession != nil
-    }
-    
-    private var advertiserListener: AnyCancellable?
-    private var browserListener: AnyCancellable?
-    private var backgroundListener: AnyCancellable?
-    
-    /// SubManagers
-    @Published public private(set) var advertisingManager: AdvertisingManager?
-    @Published public private(set) var browsingManager: BrowsingManager?
-    
-    /// MultipeerConnectivity browser
-    public private(set) var serviceBrowser: MCNearbyServiceBrowser?
-    
-    public private(set) var myPeerID: MCPeerID
-    
+    // MARK: - Initialization
     init(serviceName: String, peerID: String? = nil) {
         self.serviceName = serviceName
         self.myPeerID = peerID.flatMap { MCPeerID(displayName: $0) } ?? MCPeerID(displayName: UIDevice.current.name)
@@ -161,17 +165,31 @@ class MultipeerSessionManager: NSObject, ObservableObject {
             }
     }
     
-    public func handleDidEnterBackground() {
+    // MARK: - Internal Methods For Override
+    func handleDidEnterBackground() {
         sessionType = .none
     }
     
+    // MARK: - Exposed Functions
     #if canImport(RealityKit)
     public func makeMultipeerConnectivityService() throws -> MultipeerConnectivityService {
         try MultipeerConnectivityService(session: activeSession)
     }
     #endif
     
-    public func createAdvertiser() {
+    public func closeSession() {
+        activeSession.disconnect()
+        _activeSession = nil
+    }
+    
+    public func requestJoinSession(_ peer: MCPeerID, context: Data?, timeout: TimeInterval = 60) throws {
+        try browsingManager?.invitePeer(peer, session: activeSession, context: context, timeout: timeout)
+    }
+}
+
+// MARK: - Internal Helpers
+extension MultipeerSessionManager {
+    func createAdvertiser() {
         let discoveryInfo = makeDiscoveryInfo()
         
         advertisingManager = AdvertisingManager(peerID: myPeerID, discoveryInfo: discoveryInfo, serviceType: self.serviceName)
@@ -184,7 +202,7 @@ class MultipeerSessionManager: NSObject, ObservableObject {
             }
     }
     
-    public func removeAdvertiser() {
+    func removeAdvertiser() {
         advertiserListener?.cancel()
         advertisingManager?.stopAdvertising()
         
@@ -193,16 +211,7 @@ class MultipeerSessionManager: NSObject, ObservableObject {
         }
     }
     
-    public func removeBrowser() {
-        browserListener?.cancel()
-        browsingManager?.stopBrowsing()
-        
-        DispatchQueue.main.async {
-            self.browsingManager = nil
-        }
-    }
-    
-    public func createBrowser() {
+    func createBrowser() {
         browsingManager = BrowsingManager(peerID: myPeerID, serviceType: self.serviceName)
         
         browserListener = browsingManager?.objectWillChange
@@ -211,45 +220,46 @@ class MultipeerSessionManager: NSObject, ObservableObject {
             }
     }
     
-    public func closeSession() {
-        activeSession.disconnect()
-        _activeSession = nil
+    func removeBrowser() {
+        browserListener?.cancel()
+        browsingManager?.stopBrowsing()
+        
+        DispatchQueue.main.async {
+            self.browsingManager = nil
+        }
     }
     
-    public func requestJoinSession(_ peer: MCPeerID, context: Data?, timeout: TimeInterval = 60) throws {
-        try browsingManager?.invitePeer(peer, session: activeSession, context: context, timeout: timeout)
-    }
-
     private func makeDiscoveryInfo() -> [String: String] {
-        var discoveryInfo = self.delegate?.setDiscoveryInfo()
-          ?? [String: String]()
-
+        var discoveryInfo = self.delegate?.additionalDiscoveryInfo()
+        ?? [String: String]()
+        
         #if canImport(RealityKit)
         if #available(iOS 13.4, macOS 10.15.4, *) {
-          let networkLoc = NetworkCompatibilityToken.local
-          let jsonData = try? JSONEncoder().encode(networkLoc)
-          if let encodedToken = String(data: jsonData!, encoding: .utf8) {
-              discoveryInfo[MultipeerSessionManager.compTokenKey] = encodedToken
-          }
+            let networkLoc = NetworkCompatibilityToken.local
+            let jsonData = try? JSONEncoder().encode(networkLoc)
+            if let encodedToken = String(data: jsonData!, encoding: .utf8) {
+                discoveryInfo[MultipeerSessionManager.compTokenKey] = encodedToken
+            }
         }
         #endif
         
         #if os(iOS) || os(tvOS)
         discoveryInfo[MultipeerSessionManager.osVersionKey] = UIDevice.current.systemVersion
-          #if os(iOS)
-          discoveryInfo[MultipeerSessionManager.platformKey] = "iOS"
-          #else
-          discoveryInfo[MultipeerHelper.platformKey] = "tvOS"
-          #endif
+            #if os(iOS)
+            discoveryInfo[MultipeerSessionManager.platformKey] = "iOS"
+            #else
+            discoveryInfo[MultipeerHelper.platformKey] = "tvOS"
+            #endif
         #elseif os(macOS)
-        discoveryInfo[MultipeerHelper.osVersionKey] = ProcessInfo.processInfo.operatingSystemVersionString
-        discoveryInfo[MultipeerHelper.platformKey] = "macOS"
+            discoveryInfo[MultipeerHelper.osVersionKey] = ProcessInfo.processInfo.operatingSystemVersionString
+            discoveryInfo[MultipeerHelper.platformKey] = "macOS"
         #endif
         
         return discoveryInfo
     }
 }
 
+// MARK: - AdvertisingManagerDelegate
 extension MultipeerSessionManager: AdvertisingManagerDelegate {
     func manager(_ manager: AdvertisingManager, didReceiveJoinRequestFrom peer: MCPeerID, with inviteHandler: @escaping ((Bool, MCSession?) -> Void)) {
         let inviteCourier = SessionInvitationCourier(peer: peer, session: activeSession, invitationHandler: inviteHandler)
@@ -257,6 +267,7 @@ extension MultipeerSessionManager: AdvertisingManagerDelegate {
     }
 }
 
+// MARK: - MCSessionDelegate
 extension MultipeerSessionManager: MCSessionDelegate {
     func session(_ session: MCSession, didReceive data: Data, fromPeer peerID: MCPeerID) {
         delegate?.manager(self, received: data, from: peerID)
@@ -267,8 +278,6 @@ extension MultipeerSessionManager: MCSessionDelegate {
     }
     
     func session(_ session: MCSession, peer peerID: MCPeerID, didChange state: MCSessionState) {
-        print("PEER:\(peerID))")
-        print("DID CHANGE STATE:\(state.rawValue))")
         switch state {
         case .notConnected:
             DispatchQueue.main.async {
@@ -288,7 +297,7 @@ extension MultipeerSessionManager: MCSessionDelegate {
             }
             
         @unknown default:
-            assertionFailure("Unhandled MCSessionState")
+            print("Unhandled MCSessionState")
         }
     }
     
