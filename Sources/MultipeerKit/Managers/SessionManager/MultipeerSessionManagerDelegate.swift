@@ -10,7 +10,7 @@ import Foundation
 import MultipeerConnectivity
 
 /// Delegate for some useful multipeer connectivity methods
-protocol MultipeerSessionManagerDelegate: AnyObject {
+public protocol MultipeerSessionManagerDelegate: AnyObject {
     
     /// The Session Manager will call this when the active MCSession  is set to nil
     func managerEndingSession(_ manager: MultipeerSessionManager)

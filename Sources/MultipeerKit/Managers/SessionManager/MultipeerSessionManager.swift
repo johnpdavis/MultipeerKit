@@ -5,7 +5,7 @@ import RealityKit
 
 // MARK: - MultipeerSessionManager
 /// Aggregates an AdvertisingManager and a BrowsingManager, and provides a higher level interface so consumers can specify a session type
-class MultipeerSessionManager: NSObject, ObservableObject {
+public class MultipeerSessionManager: NSObject, ObservableObject {
     
     // MARK: - Static keys
     /// Key added to discovery info to check RealityKit compatibility token
@@ -16,7 +16,8 @@ class MultipeerSessionManager: NSObject, ObservableObject {
     public static let platformKey = "com.johndavis.multipeerkit.Platform"
     
     // MARK: - Session Type
-    enum SessionType {
+    /// Possible runtimes of this manager
+    public enum SessionType {
         case advertiser
         case browser
         case both
@@ -261,7 +262,7 @@ extension MultipeerSessionManager {
 
 // MARK: - AdvertisingManagerDelegate
 extension MultipeerSessionManager: AdvertisingManagerDelegate {
-    func manager(_ manager: AdvertisingManager, didReceiveJoinRequestFrom peer: MCPeerID, with inviteHandler: @escaping ((Bool, MCSession?) -> Void)) {
+    public func manager(_ manager: AdvertisingManager, didReceiveJoinRequestFrom peer: MCPeerID, with inviteHandler: @escaping ((Bool, MCSession?) -> Void)) {
         let inviteCourier = SessionInvitationCourier(peer: peer, session: activeSession, invitationHandler: inviteHandler)
         activeInvitationCourier = inviteCourier
     }
@@ -269,15 +270,15 @@ extension MultipeerSessionManager: AdvertisingManagerDelegate {
 
 // MARK: - MCSessionDelegate
 extension MultipeerSessionManager: MCSessionDelegate {
-    func session(_ session: MCSession, didReceive data: Data, fromPeer peerID: MCPeerID) {
+    public func session(_ session: MCSession, didReceive data: Data, fromPeer peerID: MCPeerID) {
         delegate?.manager(self, received: data, from: peerID)
     }
     
-    func session(_ session: MCSession, didReceive stream: InputStream, withName streamName: String, fromPeer peerID: MCPeerID) {
+    public func session(_ session: MCSession, didReceive stream: InputStream, withName streamName: String, fromPeer peerID: MCPeerID) {
         delegate?.manager(self, receivedStream: stream, named: streamName, from: peerID)
     }
     
-    func session(_ session: MCSession, peer peerID: MCPeerID, didChange state: MCSessionState) {
+    public func session(_ session: MCSession, peer peerID: MCPeerID, didChange state: MCSessionState) {
         switch state {
         case .notConnected:
             DispatchQueue.main.async {
@@ -301,15 +302,15 @@ extension MultipeerSessionManager: MCSessionDelegate {
         }
     }
     
-    func session(_ session: MCSession, didStartReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, with progress: Progress) {
+    public func session(_ session: MCSession, didStartReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, with progress: Progress) {
         delegate?.manager(self, startingReceiveOf: resourceName, from: peerID, progress: progress)
     }
     
-    func session(_ session: MCSession, didFinishReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, at localURL: URL?, withError error: Error?) {
+    public func session(_ session: MCSession, didFinishReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, at localURL: URL?, withError error: Error?) {
         delegate?.manager(self, didReceiveResource: resourceName, from: peerID, localURL: localURL, error: error)
     }
     
-    func session(_ session: MCSession, didReceiveCertificate certificate: [Any]?, fromPeer peerID: MCPeerID, certificateHandler: @escaping (Bool) -> Void) {
+    public func session(_ session: MCSession, didReceiveCertificate certificate: [Any]?, fromPeer peerID: MCPeerID, certificateHandler: @escaping (Bool) -> Void) {
         certificateHandler(delegate?.manager(self, receivedCertificate: certificate, from: peerID) ?? true)
     }
 }
