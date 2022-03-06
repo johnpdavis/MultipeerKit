@@ -154,7 +154,7 @@ public class MultipeerSessionManager: NSObject, ObservableObject {
     }
     
     // MARK: - Initialization
-    init(serviceName: String, peerID: String? = nil) {
+    public init(serviceName: String, peerID: String? = nil) {
         self.serviceName = serviceName
         self.myPeerID = peerID.flatMap { MCPeerID(displayName: $0) } ?? MCPeerID(displayName: UIDevice.current.name)
     
