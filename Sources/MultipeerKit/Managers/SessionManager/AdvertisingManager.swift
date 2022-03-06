@@ -15,7 +15,7 @@ public class AdvertisingManager: NSObject, ObservableObject {
         case notAdvertising
         case errorAdvertising(Error)
         
-        var string: String {
+        public var string: String {
             switch self {
             case .advertising:
                 return "Advertising"

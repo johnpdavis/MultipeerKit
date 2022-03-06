@@ -18,7 +18,7 @@ public class BrowsingManager: NSObject, ObservableObject {
         case notBrowsing
         case errorBrowsing(Error)
         
-        var string: String {
+        public var string: String {
             switch self {
             case .browsing:
                 return "Browsing"
