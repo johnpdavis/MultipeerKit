@@ -9,10 +9,10 @@ import Foundation
 import MultipeerConnectivity
 
 // MARK: - MCSessionState
-extension MCSessionState {
+public extension MCSessionState {
     
     /// A string representation of an MCSessionState.
-    var string: String {
+    public var string: String {
         switch self {
         case .notConnected:
             return "Not Connected"
