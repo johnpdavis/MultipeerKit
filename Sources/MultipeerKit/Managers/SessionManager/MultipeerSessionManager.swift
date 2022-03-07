@@ -3,6 +3,10 @@ import Foundation
 import MultipeerConnectivity
 import RealityKit
 
+public enum MultipeerSessionManagerError: Error {
+    case sessionNotActive
+}
+
 // MARK: - MultipeerSessionManager
 /// Aggregates an AdvertisingManager and a BrowsingManager, and provides a higher level interface so consumers can specify a session type
 public class MultipeerSessionManager: NSObject, ObservableObject {
@@ -185,6 +189,16 @@ public class MultipeerSessionManager: NSObject, ObservableObject {
     
     public func requestJoinSession(_ peer: MCPeerID, context: Data?, timeout: TimeInterval = 60) throws {
         try browsingManager?.invitePeer(peer, session: activeSession, context: context, timeout: timeout)
+    }
+    
+    public func sendResource(at localURL: URL, withName name: String, toPeer peer: MCPeerID, withCompletionHandler completion: ((Error?) -> Void)?) {
+        
+        guard let _activeSession = _activeSession else {
+            completion?(MultipeerSessionManagerError.sessionNotActive)
+            return
+        }
+
+        _activeSession.sendResource(at: localURL, withName: name, toPeer: peer, withCompletionHandler: completion)
     }
 }
 
