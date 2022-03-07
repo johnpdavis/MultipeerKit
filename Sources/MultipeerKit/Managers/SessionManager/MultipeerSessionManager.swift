@@ -191,14 +191,14 @@ public class MultipeerSessionManager: NSObject, ObservableObject {
         try browsingManager?.invitePeer(peer, session: activeSession, context: context, timeout: timeout)
     }
     
-    public func sendResource(at localURL: URL, withName name: String, toPeer peer: MCPeerID, withCompletionHandler completion: ((Error?) -> Void)?) {
+    public func sendResource(at localURL: URL, withName name: String, toPeer peer: MCPeerID, withCompletionHandler completion: ((Error?) -> Void)?) -> Progress? {
         
         guard let _activeSession = _activeSession else {
             completion?(MultipeerSessionManagerError.sessionNotActive)
-            return
+            return nil
         }
 
-        _activeSession.sendResource(at: localURL, withName: name, toPeer: peer, withCompletionHandler: completion)
+        return _activeSession.sendResource(at: localURL, withName: name, toPeer: peer, withCompletionHandler: completion)
     }
 }
 
