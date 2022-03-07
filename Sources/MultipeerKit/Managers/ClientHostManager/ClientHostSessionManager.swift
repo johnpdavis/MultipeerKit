@@ -5,6 +5,7 @@
 //  Created by John Davis on 3/5/22.
 //
 
+import Combine
 import Foundation
 import MultipeerConnectivity
 
@@ -34,6 +35,10 @@ public class ClientHostSessionManager: MultipeerSessionManager {
             
             objectWillChange.send()
         }
+    }
+    
+    public var currentRolePublisher: AnyPublisher<Role?, Never> {
+        return _currentRole.projectedValue.eraseToAnyPublisher()
     }
     
     // MARK: - Internal Overrides
